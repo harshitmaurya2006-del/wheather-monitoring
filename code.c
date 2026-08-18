@@ -44,7 +44,33 @@ typedef struct {
     int         num_days;
 } City;
 
-/* ---------- Utility Functions ---------- */
+/* Weekly statistics structure */
+typedef struct {
+    float avg_high;
+    float avg_low;
+    float avg_humidity;
+    float avg_wind;
+    float max_temp;
+    float min_temp;
+    float max_wind;
+    int hottest_day;
+    int coldest_day;
+} WeeklyStats;
+
+/* ============================================================
+ *  FORWARD DECLARATIONS
+ * ============================================================ */
+void print_separator(char ch, int count);
+void fprint_separator(FILE *fp, char ch, int count);
+void get_timestamp(char *buf, int size);
+void log_activity(const char *message);
+int validate_temperature(float temp);
+int validate_humidity(float humidity);
+int validate_wind_speed(float wind);
+
+/* ============================================================
+ *  UTILITY FUNCTIONS
+ * ============================================================ */
 
 void print_separator(char ch, int count) {
     int i;
@@ -59,26 +85,24 @@ void fprint_separator(FILE *fp, char ch, int count) {
 }
 
 void print_banner(void) {
-    print_separator('═', 70);
-    printf("  ╔════════════════════════════════════════════════════════════════╗\n");
-    printf("  ║       🌡️  WEATHER MONITORING & FORECAST SYSTEM v2.0  🌡️        ║\n");
-    printf("  ║           Advanced Analytics | Multi-City Support             ║\n");
-    printf("  ║              First Year C Programming Project                 ║\n");
-    printf("  ╚════════════════════════════════════════════════════════════════╝\n");
-    print_separator('═', 70);
+    print_separator('=', 70);
+    printf("  +-------- WEATHER MONITORING & FORECAST SYSTEM v2.0 --------+\n");
+    printf("  |          Advanced Analytics | Multi-City Support          |\n");
+    printf("  |             First Year C Programming Project              |\n");
+    print_separator('=', 70);
     printf("\n");
 }
 
 float to_fahrenheit(float c) { return (c * 9.0f / 5.0f) + 32.0f; }
 
 const char* get_icon(const char *condition) {
-    if (strstr(condition, "Sunny"))    return "[SUNNY] ";
-    if (strstr(condition, "Rain"))     return "[RAINY] ";
-    if (strstr(condition, "Cloud"))    return "[CLOUD] ";
-    if (strstr(condition, "Storm"))    return "[STORM] ";
-    if (strstr(condition, "Snow"))     return "[SNOW]  ";
-    if (strstr(condition, "Pleasant")) return "[NICE]  ";
-    return "[?]     ";
+    if (strstr(condition, "Sunny"))    return "[SUN] ";
+    if (strstr(condition, "Rain"))     return "[RAIN]";
+    if (strstr(condition, "Cloud"))    return "[CLOU]";
+    if (strstr(condition, "Storm"))    return "[STRM]";
+    if (strstr(condition, "Snow"))     return "[SNOW]";
+    if (strstr(condition, "Pleasant")) return "[NICE]";
+    return "[????]";
 }
 
 const char* heat_category(float temp) {
@@ -106,56 +130,14 @@ const char* wind_category(float wind) {
     return "LIGHT";
 }
 
-/* Generate Extreme Weather Alerts */
-void check_extreme_weather_alerts(City cities[], int num_cities) {
-    FILE *fp;
-    int i, d, has_alerts = 0;
-    char ts[30];
-    
-    fp = fopen(ALERT_FILE, "a");
-    if (fp == NULL) return;
-    
-    get_timestamp(ts, sizeof(ts));
-    
-    for (i = 0; i < num_cities; i++) {
-        for (d = 0; d < cities[i].num_days; d++) {
-            DayForecast *f = &cities[i].forecast[d];
-            
-            if (f->temp_high >= EXTREME_HEAT_THRESHOLD) {
-                fprintf(fp, "[%s] ALERT: %s - %s has EXTREME HEAT (%.1f°C)\n",
-                        ts, cities[i].name, f->day, f->temp_high);
-                has_alerts = 1;
-            }
-            if (f->humidity >= HIGH_HUMIDITY_THRESHOLD) {
-                fprintf(fp, "[%s] ALERT: %s - %s has HIGH HUMIDITY (%.1f%%)\n",
-                        ts, cities[i].name, f->day, f->humidity);
-                has_alerts = 1;
-            }
-            if (f->wind_speed >= HIGH_WIND_THRESHOLD) {
-                fprintf(fp, "[%s] ALERT: %s - %s has SEVERE WIND (%.1f km/h)\n",
-                        ts, cities[i].name, f->day, f->wind_speed);
-                has_alerts = 1;
-            }
-        }
-    }
-    
-    fclose(fp);
-    if (has_alerts) log_activity("Extreme weather alerts generated");
+/* Get current timestamp as string */
+void get_timestamp(char *buf, int size) {
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    strftime(buf, size, "%Y-%m-%d %H:%M:%S", tm_info);
 }
 
 /* Calculate weekly statistics */
-typedef struct {
-    float avg_high;
-    float avg_low;
-    float avg_humidity;
-    float avg_wind;
-    float max_temp;
-    float min_temp;
-    float max_wind;
-    int hottest_day;
-    int coldest_day;
-} WeeklyStats;
-
 WeeklyStats calculate_weekly_stats(const City *city) {
     WeeklyStats stats;
     int i;
@@ -194,18 +176,63 @@ WeeklyStats calculate_weekly_stats(const City *city) {
     return stats;
 }
 
-/* Get current timestamp as string */
-void get_timestamp(char *buf, int size) {
-    time_t t = time(NULL);
-    struct tm *tm_info = localtime(&t);
-    strftime(buf, size, "%Y-%m-%d %H:%M:%S", tm_info);
+/* Generate Extreme Weather Alerts */
+void check_extreme_weather_alerts(City cities[], int num_cities) {
+    FILE *fp;
+    int i, d, has_alerts = 0;
+    char ts[30];
+    
+    fp = fopen(ALERT_FILE, "a");
+    if (fp == NULL) return;
+    
+    get_timestamp(ts, sizeof(ts));
+    
+    for (i = 0; i < num_cities; i++) {
+        for (d = 0; d < cities[i].num_days; d++) {
+            DayForecast *f = &cities[i].forecast[d];
+            
+            if (f->temp_high >= EXTREME_HEAT_THRESHOLD) {
+                fprintf(fp, "[%s] ALERT: %s - %s has EXTREME HEAT (%.1f C)\n",
+                        ts, cities[i].name, f->day, f->temp_high);
+                has_alerts = 1;
+            }
+            if (f->humidity >= HIGH_HUMIDITY_THRESHOLD) {
+                fprintf(fp, "[%s] ALERT: %s - %s has HIGH HUMIDITY (%.1f%%)\n",
+                        ts, cities[i].name, f->day, f->humidity);
+                has_alerts = 1;
+            }
+            if (f->wind_speed >= HIGH_WIND_THRESHOLD) {
+                fprintf(fp, "[%s] ALERT: %s - %s has SEVERE WIND (%.1f km/h)\n",
+                        ts, cities[i].name, f->day, f->wind_speed);
+                has_alerts = 1;
+            }
+        }
+    }
+    
+    fclose(fp);
+    if (has_alerts) log_activity("Extreme weather alerts generated");
 }
 
 /* ============================================================
- *  FILE HANDLING — Section 1: WRITE (Save data to file)
+ *  INPUT VALIDATION & ERROR HANDLING
  * ============================================================ */
 
-/* Save all city weather data to a plain-text file */
+int validate_temperature(float temp) {
+    return (temp >= -50 && temp <= 60);  /* Reasonable range */
+}
+
+int validate_humidity(float humidity) {
+    return (humidity >= 0 && humidity <= 100);
+}
+
+int validate_wind_speed(float wind) {
+    return (wind >= 0 && wind <= 150);
+}
+
+/* ============================================================
+ *  FILE HANDLING - Section 1: WRITE (Save data to file)
+ * ============================================================ */
+
 int save_data_to_file(City cities[], int num_cities) {
     FILE *fp;
     int   i, d;
@@ -240,12 +267,12 @@ int save_data_to_file(City cities[], int num_cities) {
     }
 
     fclose(fp);
-    printf("  Data saved successfully to '%s'.\n", DATA_FILE);
+    printf("  [OK] Data saved successfully to '%s'.\n", DATA_FILE);
     return 1;   /* success */
 }
 
 /* ============================================================
- *  FILE HANDLING — Section 2: READ (Load data from file)
+ *  FILE HANDLING - Section 2: READ (Load data from file)
  * ============================================================ */
 
 int load_data_from_file(City cities[], int *num_cities) {
@@ -284,12 +311,12 @@ int load_data_from_file(City cities[], int *num_cities) {
     }
 
     fclose(fp);
-    printf("  Data loaded successfully from '%s'.\n", DATA_FILE);
+    printf("  [OK] Data loaded from '%s'.\n", DATA_FILE);
     return 1;
 }
 
 /* ============================================================
- *  FILE HANDLING — Section 3: APPEND (Activity Log)
+ *  FILE HANDLING - Section 3: APPEND (Activity Log)
  * ============================================================ */
 
 void log_activity(const char *message) {
@@ -305,7 +332,7 @@ void log_activity(const char *message) {
 }
 
 /* ============================================================
- *  FILE HANDLING — Section 4: REPORT (Formatted text report)
+ *  FILE HANDLING - Section 4: REPORT (Formatted text report)
  * ============================================================ */
 
 void export_report(City cities[], int num_cities) {
@@ -345,37 +372,31 @@ void export_report(City cities[], int num_cities) {
                     f->humidity, f->wind_speed, f->condition);
         }
 
-        fprintf(fp, "\n  ╔════════════════ WEEKLY ANALYTICS ════════════════╗\n");
-        fprintf(fp, "  ║  Temperature Statistics:                          ║\n");
-        fprintf(fp, "  ║    Avg High  : %.1f°C (%.1f°F)                  ║\n",
+        fprintf(fp, "\n  [WEEKLY ANALYTICS]\n");
+        fprintf(fp, "  Avg High  : %.1f C (%.1f F)\n",
                 stats.avg_high, to_fahrenheit(stats.avg_high));
-        fprintf(fp, "  ║    Avg Low   : %.1f°C (%.1f°F)                  ║\n",
+        fprintf(fp, "  Avg Low   : %.1f C (%.1f F)\n",
                 stats.avg_low, to_fahrenheit(stats.avg_low));
-        fprintf(fp, "  ║    Max High  : %.1f°C on %s                     ║\n",
+        fprintf(fp, "  Max High  : %.1f C on %s\n",
                 stats.max_temp, c->forecast[stats.hottest_day].day);
-        fprintf(fp, "  ║    Min Low   : %.1f°C on %s                     ║\n",
+        fprintf(fp, "  Min Low   : %.1f C on %s\n",
                 stats.min_temp, c->forecast[stats.coldest_day].day);
-        fprintf(fp, "  ║                                                  ║\n");
-        fprintf(fp, "  ║  Humidity & Wind:                                ║\n");
-        fprintf(fp, "  ║    Avg Humidity : %.1f%% (%s)        ║\n",
+        fprintf(fp, "  Avg Humidity : %.1f%% (%s)\n",
                 stats.avg_humidity, humidity_category(stats.avg_humidity));
-        fprintf(fp, "  ║    Avg Wind     : %.1f km/h (%s)    ║\n",
+        fprintf(fp, "  Avg Wind     : %.1f km/h (%s)\n",
                 stats.avg_wind, wind_category(stats.avg_wind));
-        fprintf(fp, "  ║    Max Wind     : %.1f km/h                     ║\n",
-                stats.max_wind);
-        fprintf(fp, "  ║                                                  ║\n");
-        fprintf(fp, "  ║  Classification: %s                    ║\n",
+        fprintf(fp, "  Max Wind     : %.1f km/h\n", stats.max_wind);
+        fprintf(fp, "  Classification: %s\n\n",
                 heat_category(stats.avg_high));
-        fprintf(fp, "  ╚════════════════════════════════════════════════════╝\n\n");
     }
 
     fprint_separator(fp, '=', 70);
-    fprintf(fp, "  REPORT GENERATED BY WEATHER MONITORING SYSTEM v2.0\n");
+    fprintf(fp, "  Report generated by Weather Monitoring System v2.0\n");
     fprintf(fp, "  Total Cities Analyzed: %d | Total Days: %d\n", num_cities, num_cities * MAX_DAYS);
     fprint_separator(fp, '=', 70);
 
     fclose(fp);
-    printf("  ✓ Comprehensive report exported to '%s'.\n", REPORT_FILE);
+    printf("  [OK] Report exported to '%s'.\n", REPORT_FILE);
     log_activity("Comprehensive report exported");
     
     /* Generate alerts */
@@ -383,7 +404,7 @@ void export_report(City cities[], int num_cities) {
 }
 
 /* ============================================================
- *  FILE HANDLING — Section 5: READ LOG (display log on screen)
+ *  FILE HANDLING - Section 5: READ LOG (display log)
  * ============================================================ */
 
 void view_log(void) {
@@ -409,7 +430,132 @@ void view_log(void) {
 }
 
 /* ============================================================
- *  FILE HANDLING — Section 6: ADD NEW CITY (user input ? file)
+ *  DISPLAY FUNCTIONS
+ * ============================================================ */
+
+void display_daily_forecast(const City *city) {
+    int i;
+    printf("\n");
+    print_separator('=', 75);
+    printf("  7-DAY FORECAST FOR: %s\n", city->name);
+    print_separator('=', 75);
+    printf("  %-12s %-8s %-8s %-10s %-8s %-12s %-8s\n",
+           "Day", "High C", "Low C", "Humidity", "Wind", "Condition", "Status");
+    print_separator('-', 75);
+    for (i = 0; i < city->num_days; i++) {
+        const DayForecast *d = &city->forecast[i];
+        const char *status;
+        if (d->temp_high >= EXTREME_HEAT_THRESHOLD) status = "[DANGER]";
+        else if (d->temp_high >= HIGH_HEAT_THRESHOLD) status = "[WARN]";
+        else if (d->humidity >= HIGH_HUMIDITY_THRESHOLD) status = "[HIGH]";
+        else if (d->wind_speed >= HIGH_WIND_THRESHOLD) status = "[WINDY]";
+        else status = "[OK]";
+        
+        printf("  %-12s %s%-5.1f    %-6.1f    %-8.1f%%  %-6.1f  %-12s %s\n",
+               d->day, get_icon(d->condition),
+               d->temp_high, d->temp_low,
+               d->humidity, d->wind_speed, d->condition, status);
+    }
+    print_separator('=', 75);
+}
+
+void display_temperature_graph(const City *city) {
+    int i, j;
+    printf("\n");
+    print_separator('=', 65);
+    printf("  TEMPERATURE VISUALIZATION - %s\n", city->name);
+    print_separator('=', 65);
+    
+    /* Find max and min for scaling */
+    float max_temp = city->forecast[0].temp_high;
+    float min_temp = city->forecast[0].temp_low;
+    int k;
+    for (k = 0; k < city->num_days; k++) {
+        if (city->forecast[k].temp_high > max_temp) max_temp = city->forecast[k].temp_high;
+        if (city->forecast[k].temp_low < min_temp) min_temp = city->forecast[k].temp_low;
+    }
+    
+    for (i = 0; i < city->num_days; i++) {
+        const DayForecast *d = &city->forecast[i];
+        int bh = (int)((d->temp_high - min_temp) / (max_temp - min_temp) * 40);
+        int bl = (int)((d->temp_low - min_temp) / (max_temp - min_temp) * 40);
+        
+        printf("  %-4s High |", d->day);
+        for (j = 0; j < bh; j++) printf("#");
+        printf(" %.1f C\n", d->temp_high);
+        
+        printf("       Low  |");
+        for (j = 0; j < bl; j++) printf("-");
+        printf(" %.1f C\n", d->temp_low);
+        printf("            |\n");
+    }
+    print_separator('=', 65);
+}
+
+void display_weekly_summary(const City *city) {
+    WeeklyStats stats = calculate_weekly_stats(city);
+    
+    printf("\n");
+    print_separator('=', 65);
+    printf("  WEEKLY SUMMARY FOR: %s\n", city->name);
+    print_separator('=', 65);
+    printf("\n  TEMPERATURE ANALYSIS\n");
+    printf("  ├─ Average High   : %.1f C (%.1f F)\n", stats.avg_high, to_fahrenheit(stats.avg_high));
+    printf("  ├─ Average Low    : %.1f C (%.1f F)\n", stats.avg_low, to_fahrenheit(stats.avg_low));
+    printf("  ├─ Hottest Day    : %s (%.1f C)\n", city->forecast[stats.hottest_day].day, stats.max_temp);
+    printf("  ├─ Coldest Day    : %s (%.1f C)\n", city->forecast[stats.coldest_day].day, stats.min_temp);
+    printf("  └─ Temp Range     : %.1f C\n\n", stats.max_temp - stats.min_temp);
+    
+    printf("  WIND & HUMIDITY ANALYSIS\n");
+    printf("  ├─ Average Humidity : %.1f%% (%s)\n", stats.avg_humidity, humidity_category(stats.avg_humidity));
+    printf("  ├─ Average Wind     : %.1f km/h (%s)\n", stats.avg_wind, wind_category(stats.avg_wind));
+    printf("  ├─ Max Wind Speed   : %.1f km/h\n", stats.max_wind);
+    printf("  └─ Comfort Level    : %s\n\n", heat_category(stats.avg_high));
+    
+    printf("  RISK ASSESSMENT\n");
+    printf("  ├─ Heat Risk      : %s\n", heat_category(stats.max_temp));
+    printf("  ├─ Humidity Risk  : %s\n", humidity_category(stats.avg_humidity));
+    printf("  └─ Wind Risk      : %s\n", wind_category(stats.max_wind));
+    
+    print_separator('=', 65);
+}
+
+void display_city_comparison(City cities[], int num_cities) {
+    int i;
+    printf("\n");
+    print_separator('=', 80);
+    printf("  MULTI-CITY COMPARISON (Weekly Averages)\n");
+    print_separator('=', 80);
+    printf("  %-20s %-12s %-12s %-12s %-10s %-8s\n", 
+           "City", "Avg High C", "Avg Low C", "Humidity", "Wind Speed", "Category");
+    print_separator('-', 80);
+    
+    float global_avg_high = 0, global_avg_low = 0;
+    
+    for (i = 0; i < num_cities; i++) {
+        WeeklyStats stats = calculate_weekly_stats(&cities[i]);
+        global_avg_high += stats.avg_high;
+        global_avg_low += stats.avg_low;
+        
+        printf("  %-20s %-12.1f %-12.1f %-12.1f%% %-10.1f %-8s\n",
+               cities[i].name, 
+               stats.avg_high,
+               stats.avg_low,
+               stats.avg_humidity,
+               stats.avg_wind,
+               heat_category(stats.avg_high));
+    }
+    
+    print_separator('-', 80);
+    printf("  %-20s %-12.1f %-12.1f\n", 
+           "GLOBAL AVERAGE", 
+           global_avg_high / num_cities,
+           global_avg_low / num_cities);
+    print_separator('=', 80);
+}
+
+/* ============================================================
+ *  FILE HANDLING - Section 6: ADD NEW CITY
  * ============================================================ */
 
 void add_city_from_user(City cities[], int *num_cities) {
@@ -434,7 +580,7 @@ void add_city_from_user(City cities[], int *num_cities) {
     c->num_days = MAX_DAYS;
 
     printf("  Enter data for 7 days (High Low Humidity Wind Condition):\n");
-    printf("  NOTE: Temp (-50 to 60°C), Humidity (0-100%%), Wind (0-150 km/h)\n");
+    printf("  NOTE: Temp (-50 to 60 C), Humidity (0-100%%), Wind (0-150 km/h)\n");
     
     for (d = 0; d < MAX_DAYS; d++) {
         int valid_input = 0;
@@ -450,18 +596,18 @@ void add_city_from_user(City cities[], int *num_cities) {
             
             /* Validate input parsing */
             if (scan_result != 5) {
-                printf("  ERROR: Please enter all 5 values (High Low Humidity Wind Condition)\n");
+                printf("  ERROR: Please enter all 5 values\n");
                 while (getchar() != '\n');  /* Clear input buffer */
                 continue;
             }
             
             /* Validate value ranges */
             if (!validate_temperature(c->forecast[d].temp_high)) {
-                printf("  ERROR: High temp must be between -50 and 60°C\n");
+                printf("  ERROR: High temp must be between -50 and 60 C\n");
                 continue;
             }
             if (!validate_temperature(c->forecast[d].temp_low)) {
-                printf("  ERROR: Low temp must be between -50 and 60°C\n");
+                printf("  ERROR: Low temp must be between -50 and 60 C\n");
                 continue;
             }
             if (!validate_humidity(c->forecast[d].humidity)) {
@@ -485,7 +631,7 @@ void add_city_from_user(City cities[], int *num_cities) {
     }
 
     (*num_cities)++;
-    printf("  ✓ City '%s' added successfully!\n", c->name);
+    printf("  [OK] City '%s' added successfully!\n", c->name);
 
     /* Auto-save after adding */
     save_data_to_file(cities, *num_cities);
@@ -495,146 +641,9 @@ void add_city_from_user(City cities[], int *num_cities) {
     log_activity(logmsg);
 }
 
-/* ---------- Display Functions (unchanged) ---------- */
-
-void display_daily_forecast(const City *city) {
-    int i;
-    printf("\n");
-    print_separator('═', 75);
-    printf("  🌍 7-DAY FORECAST FOR: %s\n", city->name);
-    print_separator('═', 75);
-    printf("  %-12s %-8s %-8s %-10s %-8s %-12s %-8s\n",
-           "Day", "High C", "Low C", "Humidity", "Wind", "Condition", "Status");
-    print_separator('─', 75);
-    for (i = 0; i < city->num_days; i++) {
-        const DayForecast *d = &city->forecast[i];
-        const char *status;
-        if (d->temp_high >= EXTREME_HEAT_THRESHOLD) status = "🔴 DANGER";
-        else if (d->temp_high >= HIGH_HEAT_THRESHOLD) status = "🟠 WARN";
-        else if (d->humidity >= HIGH_HUMIDITY_THRESHOLD) status = "🟡 HIGH";
-        else if (d->wind_speed >= HIGH_WIND_THRESHOLD) status = "🟡 WINDY";
-        else status = "🟢 OK";
-        
-        printf("  %-12s %s%-5.1f    %-6.1f    %-8.1f%%  %-6.1f  %-12s %s\n",
-               d->day, get_icon(d->condition),
-               d->temp_high, d->temp_low,
-               d->humidity, d->wind_speed, d->condition, status);
-    }
-    print_separator('═', 75);
-}
-
-void display_temperature_graph(const City *city) {
-    int i, j;
-    printf("\n");
-    print_separator('═', 65);
-    printf("  📈 TEMPERATURE VISUALIZATION - %s\n", city->name);
-    print_separator('═', 65);
-    
-    /* Find max and min for scaling */
-    float max_temp = city->forecast[0].temp_high;
-    float min_temp = city->forecast[0].temp_low;
-    int k;
-    for (k = 0; k < city->num_days; k++) {
-        if (city->forecast[k].temp_high > max_temp) max_temp = city->forecast[k].temp_high;
-        if (city->forecast[k].temp_low < min_temp) min_temp = city->forecast[k].temp_low;
-    }
-    
-    for (i = 0; i < city->num_days; i++) {
-        const DayForecast *d = &city->forecast[i];
-        int bh = (int)((d->temp_high - min_temp) / (max_temp - min_temp) * 40);
-        int bl = (int)((d->temp_low - min_temp) / (max_temp - min_temp) * 40);
-        
-        printf("  %-4s High |", d->day);
-        for (j = 0; j < bh; j++) printf("█");
-        printf(" %.1f°C\n", d->temp_high);
-        
-        printf("       Low  |");
-        for (j = 0; j < bl; j++) printf("▁");
-        printf(" %.1f°C\n", d->temp_low);
-        printf("            |\n");
-    }
-    print_separator('═', 65);
-}
-
-void display_weekly_summary(const City *city) {
-    WeeklyStats stats = calculate_weekly_stats(city);
-    
-    printf("\n");
-    print_separator('═', 65);
-    printf("  WEEKLY SUMMARY FOR: %s\n", city->name);
-    print_separator('═', 65);
-    printf("\n  📊 TEMPERATURE ANALYSIS\n");
-    printf("  ├─ Average High   : %.1f°C (%.1f°F)\n", stats.avg_high, to_fahrenheit(stats.avg_high));
-    printf("  ├─ Average Low    : %.1f°C (%.1f°F)\n", stats.avg_low, to_fahrenheit(stats.avg_low));
-    printf("  ├─ Hottest Day    : %s (%.1f°C)\n", city->forecast[stats.hottest_day].day, stats.max_temp);
-    printf("  ├─ Coldest Day    : %s (%.1f°C)\n", city->forecast[stats.coldest_day].day, stats.min_temp);
-    printf("  └─ Temp Range     : %.1f°C\n\n", stats.max_temp - stats.min_temp);
-    
-    printf("  💨 WIND & HUMIDITY ANALYSIS\n");
-    printf("  ├─ Average Humidity : %.1f%% (%s)\n", stats.avg_humidity, humidity_category(stats.avg_humidity));
-    printf("  ├─ Average Wind     : %.1f km/h (%s)\n", stats.avg_wind, wind_category(stats.avg_wind));
-    printf("  ├─ Max Wind Speed   : %.1f km/h\n", stats.max_wind);
-    printf("  └─ Comfort Level    : %s\n\n", heat_category(stats.avg_high));
-    
-    printf("  🎯 RISK ASSESSMENT\n");
-    printf("  ├─ Heat Risk      : %s\n", heat_category(stats.max_temp));
-    printf("  ├─ Humidity Risk  : %s\n", humidity_category(stats.avg_humidity));
-    printf("  └─ Wind Risk      : %s\n", wind_category(stats.max_wind));
-    
-    print_separator('═', 65);
-}
-
-void display_city_comparison(City cities[], int num_cities) {
-    int i;
-    printf("\n");
-    print_separator('═', 80);
-    printf("  🌐 MULTI-CITY COMPARISON (Weekly Averages)\n");
-    print_separator('═', 80);
-    printf("  %-20s %-12s %-12s %-12s %-10s %-8s\n", 
-           "City", "Avg High C", "Avg Low C", "Humidity", "Wind Speed", "Category");
-    print_separator('─', 80);
-    
-    float global_avg_high = 0, global_avg_low = 0;
-    
-    for (i = 0; i < num_cities; i++) {
-        WeeklyStats stats = calculate_weekly_stats(&cities[i]);
-        global_avg_high += stats.avg_high;
-        global_avg_low += stats.avg_low;
-        
-        printf("  %-20s %-12.1f %-12.1f %-12.1f%% %-10.1f %-8s\n",
-               cities[i].name, 
-               stats.avg_high,
-               stats.avg_low,
-               stats.avg_humidity,
-               stats.avg_wind,
-               heat_category(stats.avg_high));
-    }
-    
-    print_separator('─', 80);
-    printf("  %-20s %-12.1f %-12.1f\n", 
-           "GLOBAL AVERAGE", 
-           global_avg_high / num_cities,
-           global_avg_low / num_cities);
-    print_separator('═', 80);
-}
-
 /* ============================================================
- *  INPUT VALIDATION & ERROR HANDLING
+ *  DATA INITIALIZATION
  * ============================================================ */
-
-int validate_temperature(float temp) {
-    return (temp >= -50 && temp <= 60);  /* Reasonable range */
-}
-
-int validate_humidity(float humidity) {
-    return (humidity >= 0 && humidity <= 100);
-}
-
-int validate_wind_speed(float wind) {
-    return (wind >= 0 && wind <= 150);
-}
-
-/* ---------- Data Initialisation ---------- */
 
 void init_cities(City cities[], int *num_cities) {
     char *days[] = {"Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
@@ -667,7 +676,9 @@ void init_cities(City cities[], int *num_cities) {
     *num_cities = 3;
 }
 
-/* ---------- Main ---------- */
+/* ============================================================
+ *  MAIN PROGRAM
+ * ============================================================ */
 
 int main(void) {
     City cities[MAX_CITIES];
@@ -685,24 +696,24 @@ int main(void) {
 
     do {
         printf("\n");
-        print_separator('═', 50);
+        print_separator('=', 50);
         printf("  WEATHER MONITORING SYSTEM v2.0 - MAIN MENU\n");
-        print_separator('═', 50);
-        printf("  📊 FORECAST & ANALYSIS\n");
+        print_separator('=', 50);
+        printf("  FORECAST & ANALYSIS\n");
         printf("     1. View 7-Day Forecast (City)\n");
         printf("     2. Temperature Graph   (City)\n");
         printf("     3. Weekly Summary      (City)\n");
         printf("     4. Compare All Cities\n");
-        printf("\n  📁 FILE & DATA MANAGEMENT\n");
+        printf("\n  FILE & DATA MANAGEMENT\n");
         printf("     5. Save Data to File   (%s)\n", DATA_FILE);
         printf("     6. Load Data from File (%s)\n", DATA_FILE);
         printf("     7. Export Full Report  (%s)\n", REPORT_FILE);
         printf("     8. View Activity Log   (%s)\n", LOG_FILE);
         printf("     9. View Weather Alerts (%s)\n", ALERT_FILE);
         printf("    10. Add New City (& auto-save)\n");
-        printf("\n  🚪 EXIT\n");
+        printf("\n  EXIT\n");
         printf("     0. Exit Program\n");
-        print_separator('═', 50);
+        print_separator('=', 50);
         printf("  Enter choice (0-10): ");
         scanf("%d", &choice);
 
@@ -734,11 +745,11 @@ int main(void) {
             case 6: load_data_from_file(cities, &num_cities); break;
             case 7: export_report(cities, num_cities);       break;
             case 8: view_log();                              break;
-            case 9: view_log();  /* Viewing alerts from log */
+            case 9: view_log();
                     printf("  Note: Alerts are generated when reports are exported.\n");
                     log_activity("Viewed alerts"); break;
             case 10: add_city_from_user(cities, &num_cities); break;
-            case 0: printf("\n  👋 Goodbye! Saving activity log...\n\n");
+            case 0: printf("\n  Goodbye! Saving activity log...\n\n");
                     log_activity("Program exited normally"); break;
             default: printf("  ERROR: Invalid option. Please enter 0-10.\n"); break;
         }
